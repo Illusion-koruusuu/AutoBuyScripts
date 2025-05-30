@@ -9,15 +9,20 @@
 #     6、脚本只负责提交订单，之后24小时内需要自行完成付款操作。                                                  #
 ##################################################################################################################
 import os
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
 from selenium import webdriver
 from selenium.webdriver.common.action_chains import ActionChains
 import datetime
 import time
 import random
 
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.wait import WebDriverWait
 
 # ==== 设定抢购时间 （修改此处，指定抢购时间点）====
-BUY_TIME = "2018-10-14 19:31:30"
+BUY_TIME = "2025-05-30 20:00:00"
 
 
 
@@ -37,7 +42,7 @@ print("正在打开chrome浏览器...")
 #让浏览器不要显示当前受自动化测试工具控制的提醒
 option = webdriver.ChromeOptions()
 option.add_argument('disable-infobars')
-driver = webdriver.Chrome(chrome_options=option)
+driver = webdriver.Chrome(options=option)
 driver.maximize_window()
 print("chrome浏览器已经打开...")
 
@@ -45,9 +50,9 @@ print("chrome浏览器已经打开...")
 def __login_operates():
     driver.get("https://www.taobao.com")
     try:
-        if driver.find_element_by_link_text("亲，请登录"):
+        if driver.find_element(By.LINK_TEXT,"亲，请登录"):
             print("没登录，开始点击登录按钮...")
-            driver.find_element_by_link_text("亲，请登录").click()
+            driver.find_element(By.LINK_TEXT,"亲，请登录").click()
             print("请使用手机淘宝扫描屏幕上的二维码进行登录...")
             time.sleep(10)
     except:
@@ -67,15 +72,13 @@ def login():
         __login_operates()
         if login_success:
             print("登录成功")
-            break;
+            break
         else:
             print("等待登录中...")
 
     if not login_success:
         print("规定时间内没有扫码登录淘宝成功，执行失败，退出脚本!!!")
-        exit(0);
-    
-
+        exit(0)
 
     # time.sleep(3)
     now = datetime.datetime.now()
@@ -107,9 +110,21 @@ def buy():
     time.sleep(1)
  
     #点击购物车里全选按钮
-    if driver.find_element_by_id("J_SelectAll1"):
-        driver.find_element_by_id("J_SelectAll1").click()
-        print("已经选中购物车中全部商品 ...")
+
+    # 等待页面加载并找到所有 ant-checkbox-input
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_all_elements_located((By.CSS_SELECTOR, "input.ant-checkbox-input"))
+    )
+
+    # 获取全部 checkbox 元素
+    checkboxes = driver.find_elements(By.CSS_SELECTOR, "input.ant-checkbox-input")
+
+    # 点击第一个，也就是“全选”按钮
+    if checkboxes:
+        checkboxes[0].click()
+        print("点击了“全选”按钮。")
+    else:
+        print("没有找到全选按钮")
 
     submit_succ = False
     retry_submit_times = 0
@@ -127,25 +142,27 @@ def buy():
             retry_submit_times = retry_submit_times + 1
 
             try:
-                #点击结算按钮
-                if driver.find_element_by_id("J_Go"):
-                    driver.find_element_by_id("J_Go").click()
-                    print("已经点击结算按钮...")
-                    click_submit_times = 0
-                    while True:
-                        try:
-                            if click_submit_times < 10:
-                                driver.find_element_by_link_text('提交订单').click()
-                                print("已经点击提交订单按钮")
-                                submit_succ = True
-                                break
-                            else:
-                                print("提交订单失败...")
-                        except Exception as ee:
-                            #print(ee)
-                            print("没发现提交订单按钮，可能页面还没加载出来，重试...")
-                            click_submit_times = click_submit_times + 1
-                            time.sleep(0.1)
+                # 等待“结算”按钮出现并点击
+                wait = WebDriverWait(driver, 10)
+                checkout_btn = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "btn--QDjHtErD")))
+                checkout_btn.click()
+                print("已经点击结算按钮...")
+
+                click_submit_times = 0
+                while True:
+                    try:
+                        if click_submit_times < 10:
+                            submit_btn = driver.find_element(By.CLASS_NAME, "btn--QDjHtErD")
+                            submit_btn.click()
+                            print("已经点击提交订单按钮")
+                            submit_succ = True
+                            break
+                        else:
+                            print("提交订单失败...")
+                    except Exception:
+                        print("没发现提交订单按钮，可能页面还没加载出来，重试...")
+                        click_submit_times += 1
+                        time.sleep(0.1)
             except Exception as e:
                 print(e)
                 print("不好，挂了，提交订单失败了...")
