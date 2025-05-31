@@ -22,7 +22,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 
 # ==== 设定抢购时间 （修改此处，指定抢购时间点）====
-BUY_TIME = "2025-05-30 20:00:00"
+BUY_TIME = "2025-05-31 20:00:00.000"
 
 
 
@@ -31,7 +31,7 @@ MAX_LOGIN_RETRY_TIMES = 6
 
 current_retry_login_times = 0
 login_success = False
-buy_time_object = datetime.datetime.strptime(BUY_TIME, '%Y-%m-%d %H:%M:%S')
+buy_time_object = datetime.datetime.strptime(BUY_TIME, '%Y-%m-%d %H:%M:%S.%f')
 
 now_time = datetime.datetime.now()
 if now_time > buy_time_object:
@@ -95,13 +95,23 @@ def keep_login_and_wait():
     print("当前距离抢购时间点还有较长时间，开始定时刷新防止登录超时...")
     while True:
         currentTime = datetime.datetime.now()
-        if (buy_time_object - currentTime).seconds > 180:
+        if (buy_time_object - currentTime).seconds > 120:
             __refresh_keep_alive()
         else:
             print("抢购时间点将近，停止自动刷新，准备进入抢购阶段...")
             break
     
 
+# ==== 精确等待直到抢购时间 ====
+def wait_until_buy_time():
+    print("开始精确等待抢购时间...")
+    while True:
+        now = datetime.datetime.now()
+        print(" 现在时间： " + now.strftime("%Y-%m-%d %H:%M:%S.%f"))
+        if now >= buy_time_object:
+            print("==== 到达抢购时间 ====")
+            break
+        time.sleep(0.001)  # 提高时间精度
 
 
 def buy():
@@ -121,37 +131,42 @@ def buy():
 
     # 点击第一个，也就是“全选”按钮
     if checkboxes:
-        checkboxes[0].click()
+        checkboxes[1].click()
         print("点击了“全选”按钮。")
     else:
         print("没有找到全选按钮")
 
     submit_succ = False
     retry_submit_times = 0
+    # 提前找到结算按钮，待时间到点击
+    wait = WebDriverWait(driver, 10)
+    checkout_btn = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "btn--QDjHtErD")))
+    print("已经找到结算按钮")
     while True:
-        now = datetime.datetime.now()
-        if now >= buy_time_object:
-            print("到达抢购时间，开始执行抢购...尝试次数：" + str(retry_submit_times))
-            if submit_succ:
-                print("订单已经提交成功，无需继续抢购...")
-                break
-            if retry_submit_times > 50:
-                print("重试抢购次数达到上限，放弃重试...")
-                break
+        # now = datetime.datetime.now()
+        # if now >= buy_time_object:
+        #     print("到达抢购时间，开始执行抢购...尝试次数：" + str(retry_submit_times))
+        #     if submit_succ:
+        #         print("订单已经提交成功，无需继续抢购...")
+        #         break
+        #     if retry_submit_times > 50:
+        #         print("重试抢购次数达到上限，放弃重试...")
+        #         break
 
             retry_submit_times = retry_submit_times + 1
 
             try:
                 # 等待“结算”按钮出现并点击
-                wait = WebDriverWait(driver, 10)
-                checkout_btn = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "btn--QDjHtErD")))
+                # wait = WebDriverWait(driver, 10)
+                # checkout_btn = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "btn--QDjHtErD")))
+                wait_until_buy_time()
                 checkout_btn.click()
-                print("已经点击结算按钮...")
+                print("点击结算成功，正在提交订单...")
 
                 click_submit_times = 0
                 while True:
                     try:
-                        if click_submit_times < 10:
+                        if click_submit_times < 10000:
                             submit_btn = driver.find_element(By.CLASS_NAME, "btn--QDjHtErD")
                             submit_btn.click()
                             print("已经点击提交订单按钮")
@@ -159,15 +174,20 @@ def buy():
                             break
                         else:
                             print("提交订单失败...")
+                            exit(0)
                     except Exception:
                         print("没发现提交订单按钮，可能页面还没加载出来，重试...")
                         click_submit_times += 1
-                        time.sleep(0.1)
+                        time.sleep(0.001)
             except Exception as e:
+                if submit_succ:
+                    print("订单已经提交成功，无需继续抢购...")
+                    time.sleep(300)
+                    exit(0)
                 print(e)
                 print("不好，挂了，提交订单失败了...")
 
-        time.sleep(0.1)
+            time.sleep(0.001)
 
 
 login()
