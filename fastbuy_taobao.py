@@ -9,6 +9,8 @@
 #     6、脚本只负责提交订单，之后24小时内需要自行完成付款操作。                                                  #
 ##################################################################################################################
 import os
+import sys
+
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
@@ -22,7 +24,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 
 # ==== 设定抢购时间 （修改此处，指定抢购时间点）====
-BUY_TIME = "2025-05-31 20:00:00.000"
+BUY_TIME = "2025-06-05 20:00:00.000"
 
 
 
@@ -167,7 +169,9 @@ def buy():
                 while True:
                     try:
                         if click_submit_times < 10000:
-                            submit_btn = driver.find_element(By.CLASS_NAME, "btn--QDjHtErD")
+                            submit_btn = WebDriverWait(driver, 0.5, 0.01).until(
+                                EC.element_to_be_clickable((By.CLASS_NAME, "btn--QDjHtErD  "))
+                            )
                             submit_btn.click()
                             print("已经点击提交订单按钮")
                             submit_succ = True
@@ -189,6 +193,30 @@ def buy():
 
             time.sleep(0.001)
 
+# 创建 logs 文件夹
+os.makedirs("logs", exist_ok=True)
+
+# 生成当前时间的日志文件名
+log_filename = datetime.datetime.now().strftime("logs/log_%Y-%m-%d_%H-%M-%S.log")
+log_file = open(log_filename, "w", encoding="utf-8")
+
+# 自定义 Logger 类，把 print 输出重定向到文件和终端
+class Logger:
+    def __init__(self, stream1, stream2):
+        self.stream1 = stream1  # 终端
+        self.stream2 = stream2  # 文件
+
+    def write(self, message):
+        self.stream1.write(message)
+        self.stream2.write(message)
+        self.flush()
+
+    def flush(self):
+        self.stream1.flush()
+        self.stream2.flush()
+
+sys.stdout = Logger(sys.stdout, log_file)
+sys.stderr = Logger(sys.stderr, log_file)
 
 login()
 keep_login_and_wait()
